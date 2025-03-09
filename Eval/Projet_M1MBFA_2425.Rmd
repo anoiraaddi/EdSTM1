@@ -1,6 +1,6 @@
 ---
 title: "Économétrie des Séries Temporelles"
-author: "NOM, Prénom, Numéro étudiant"
+author: "AADDI, Anoir, 24010196"
 date: "Projet M1 MBFA -- 2024/2025"
 output: pdf_document
 #output: html_document
@@ -23,13 +23,67 @@ output: pdf_document
 library()
 library()
 ```
+install.packages(c("forecast", "tseries", "ggplot2", "vars"))
+
+library(forecast)
+library(tseries)
+library(ggplot2)
+library(vars)
+
+
 
 ## 1. Bruit Blanc
 
   a. Simuler un bruit blanc gaussien de taille $n$ à choisir entre 100 et 250.
   (***IMPORTANT** : vous garderez le même nombre d'observations, $n$, tout au long du projet*).
+  
+  # Définition de la taille de l'échantillon
+set.seed(123) # Pour la reproductibilité
+n <- 200 # Nombre d'observations (modifiable entre 100 et 250)
+
+# Génération d'un bruit blanc gaussien
+bb1 <- rnorm(n, mean = 0, sd = 1)
+
+# Affichage des premières valeurs
+head(bb1)
+
   b. Représenter graphiquement cette série et superposer un autre bruit blanc gaussien de taille identique.
+  
+  # Génération d'un second bruit blanc
+bb2 <- rnorm(n, mean = 0, sd = 1)
+
+# Tracé des deux bruits blancs
+df <- data.frame(time = 1:n, bb1 = bb1, bb2 = bb2)
+
+ggplot(df, aes(x = time)) +
+  geom_line(aes(y = bb1, color = "Bruit blanc 1")) +
+  geom_line(aes(y = bb2, color = "Bruit blanc 2"), linetype = "dashed") +
+  labs(title = "Comparaison de deux bruits blancs gaussiens",
+       x = "Temps",
+       y = "Valeur") +
+  theme_minimal() +
+  scale_color_manual(values = c("blue", "red"))
+
   c. Tracer l'ACF et la PACF théoriques et estimées ; comparer.
+  # ACF et PACF estimées
+acf(bb1, main = "ACF estimée du bruit blanc")
+pacf(bb1, main = "PACF estimée du bruit blanc")
+
+# ACF et PACF théoriques (simulation de nombreuses séries et moyenne)
+sim_bb <- replicate(1000, acf(rnorm(n), plot = FALSE)$acf)
+acf_theorique <- colMeans(sim_bb) # Moyenne des ACF simulées
+
+plot(0:(length(acf_theorique)-1), acf_theorique, type="h", 
+     main="ACF théorique du bruit blanc", xlab="Lag", ylab="ACF", col="blue")
+abline(h=0, col="red", lty=2)
+
+Comparaison: 
+-L’ACF théorique d’un bruit blanc est nulle pour tous les retards sauf au lag 0.
+-L’ACF estimée présente des valeurs fluctuantes, mais la plupart des coefficients restent dans les bandes de confiance, confirmant l’absence d’autocorrélation significative.
+- La PACF estimée est aussi non significative sauf au lag 0, ce qui confirme l'hypothèse de bruit blanc.
+
+  
+
 
 ## 2. Processus Stationnaire
 
@@ -37,25 +91,120 @@ library()
   a. Simuler et tracer $n$ observations d'un processus à moyenne mobile
   $$y_t = \theta \varepsilon_{t-1} +  \varepsilon_{t},$$
   où $\varepsilon_{t}$ est un bruit blanc de loi $\mathsf{N}(0,1)$ et où $\theta$ est à choisir.
+  
+  set.seed(123)
+theta <- 0.7
+eps <- rnorm(n, mean = 0, sd = 1)
+y_ma1 <- eps + theta * c(0, eps[-n]) # Décalage d'un pas
+
+# Tracé de la série
+ggplot(data.frame(time = 1:n, y = y_ma1), aes(x = time, y = y)) +
+  geom_line(color = "blue") +
+  labs(title = "Processus MA(1) simulé", x = "Temps", y = "Valeur") +
+  theme_minimal()
+
+  
   b. Tracer l'ACF et la PACF théoriques et estimées ; comparer.
+  
+  # ACF et PACF estimées
+acf(y_ma1, main = "ACF estimée du processus MA(1)")
+pacf(y_ma1, main = "PACF estimée du processus MA(1)")
+
   c. Estimer le modèle MA(1) sur les données simulées.
+  
+  ma1_fit <- arima(y_ma1, order = c(0,0,1))
+summary(ma1_fit)
+
   d. Tester les résidus.
+  
+  # Test de Ljung-Box (absence d'autocorrélation)
+Box.test(ma1_fit$residuals, lag = 10, type = "Ljung-Box")
+
+# Tracé des résidus
+ggplot(data.frame(time = 1:n, res = ma1_fit$residuals), aes(x = time, y = res)) +
+  geom_line(color = "red") +
+  labs(title = "Résidus du modèle MA(1)", x = "Temps", y = "Résidu") +
+  theme_minimal()
+
 
 ### AR(1)
   a. Simuler et tracer $n$ observations d'un processus autorégressif
   $$y_t = \varphi y_{t-1} +  \varepsilon_{t},$$
   où $\varepsilon_{t}$ est un bruit blanc de loi $\mathsf{N}(0,1)$ et où $\varphi$ est à choisir.
+  
+  phi <- 0.6
+y_ar1 <- numeric(n)
+y_ar1[1] <- rnorm(1) # Condition initiale
+
+for (t in 2:n) {
+  y_ar1[t] <- phi * y_ar1[t-1] + rnorm(1)
+}
+
+# Tracé de la série
+ggplot(data.frame(time = 1:n, y = y_ar1), aes(x = time, y = y)) +
+  geom_line(color = "blue") +
+  labs(title = "Processus AR(1) simulé", x = "Temps", y = "Valeur") +
+  theme_minimal()
+
   b. Tracer l'ACF et la PACF théoriques et estimées ; comparer.
+  
+  acf(y_ar1, main = "ACF estimée du processus AR(1)")
+pacf(y_ar1, main = "PACF estimée du processus AR(1)")
+
   c. Estimer le modèle AR(1) sur les données simulées.
+  
+  ar1_fit <- arima(y_ar1, order = c(1,0,0))
+summary(ar1_fit)
+
   d. Tester les résidus.
+  
+  Box.test(ar1_fit$residuals, lag = 10, type = "Ljung-Box")
+
+ggplot(data.frame(time = 1:n, res = ar1_fit$residuals), aes(x = time, y = res)) +
+  geom_line(color = "red") +
+  labs(title = "Résidus du modèle AR(1)", x = "Temps", y = "Résidu") +
+  theme_minimal()
+
 
 ### ARMA(1,1)
   a. Simuler et tracer $n$ observations d'un processus autorégressif à moyenne mobile
   $$y_t = \varphi y_{t-1} + \theta \varepsilon_{t-1} + \varepsilon_{t},$$
   où $\varepsilon_{t}$ est un bruit blanc de loi $\mathsf{N}(0,1)$ et où $\theta$ et $\varphi$ sont à choisir.
+  
+  phi <- 0.5
+theta <- 0.4
+
+y_arma <- numeric(n)
+eps <- rnorm(n)
+
+y_arma[1] <- eps[1]
+for (t in 2:n) {
+  y_arma[t] <- phi * y_arma[t-1] + theta * eps[t-1] + eps[t]
+}
+
+ggplot(data.frame(time = 1:n, y = y_arma), aes(x = time, y = y)) +
+  geom_line(color = "blue") +
+  labs(title = "Processus ARMA(1,1) simulé", x = "Temps", y = "Valeur") +
+  theme_minimal()
+
   b. Tracer l'ACF et la PACF théoriques et estimées ; comparer.
+  
+  acf(y_arma, main = "ACF estimée du processus ARMA(1,1)")
+pacf(y_arma, main = "PACF estimée du processus ARMA(1,1)")
+
   c. Estimer le modèle ARMA(1,1) sur les données simulées.
+  
+  arma_fit <- arima(y_arma, order = c(1,0,1))
+summary(arma_fit)
+
   d. Tester les résidus.
+
+Box.test(arma_fit$residuals, lag = 10, type = "Ljung-Box")
+
+ggplot(data.frame(time = 1:n, res = arma_fit$residuals), aes(x = time, y = res)) +
+  geom_line(color = "red") +
+  labs(title = "Résidus du modèle ARMA(1,1)", x = "Temps", y = "Résidu") +
+  theme_minimal()
 
 ## 3. Processus Non-Stationnaire
 
@@ -64,18 +213,78 @@ library()
   a. Simuler $n$ observations d'un processus de marche aléatoire sans dérive :
   $$y_t = y_{t-1} + \varepsilon_{t},$$
   où $\varepsilon_{t}$ est un bruit blanc de loi $\mathsf{N}(0,1)$.
+  
+  set.seed(123)
+y_rw <- cumsum(rnorm(n, mean = 0, sd = 1)) # Somme cumulée d'un bruit blanc
+
+# Tracé de la série
+ggplot(data.frame(time = 1:n, y = y_rw), aes(x = time, y = y)) +
+  geom_line(color = "blue") +
+  labs(title = "Processus de Marche Aléatoire", x = "Temps", y = "Valeur") +
+  theme_minimal()
+
   b. Représenter graphiquement la série simulée.
+  
+  acf(y_rw, main = "ACF estimée de la marche aléatoire")
+pacf(y_rw, main = "PACF estimée de la marche aléatoire")
+
   c. Calculer et tracer l'ACF et la PACF de la série simulée. Comparer les résultats avec ceux d'une série stationnaire.
+  
+  # Processus AR(1) stationnaire
+phi <- 0.6
+y_ar1 <- numeric(n)
+y_ar1[1] <- rnorm(1)
+
+for (t in 2:n) {
+  y_ar1[t] <- phi * y_ar1[t-1] + rnorm(1)
+}
+
+# Tracé comparatif
+df_compare <- data.frame(time = rep(1:n, 2), 
+                         y = c(y_rw, y_ar1), 
+                         type = rep(c("Marche aléatoire", "AR(1) stationnaire"), each = n))
+
+ggplot(df_compare, aes(x = time, y = y, color = type)) +
+  geom_line() +
+  labs(title = "Comparaison Marche Aléatoire vs. AR(1)", x = "Temps", y = "Valeur") +
+  theme_minimal() +
+  scale_color_manual(values = c("blue", "red"))
+
   d. Commenter sur les propriétés de la marche aléatoire et son implication pour la non-stationnarité.
+  
+  Contrairement à l'AR(1), la marche aléatoire ne revient jamais vers une moyenne, ce qui la rend non-stationnaire.
 
 ### Tendance et Dérive
 
   a. Simuler $n$ observations d'un processus avec une tendance linéaire et une dérive :
   $$y_t = 0.5 + 0.1t + \varepsilon_{t},$$
   où $\varepsilon_{t}$ est un bruit blanc de loi $\mathsf{N}(0,1)$.
+  
+  t <- 1:n
+y_trend <- 0.5 + 0.1 * t + rnorm(n)
+
+ggplot(data.frame(time = t, y = y_trend), aes(x = time, y = y)) +
+  geom_line(color = "blue") +
+  geom_smooth(method = "lm", color = "red", linetype = "dashed") +
+  labs(title = "Processus avec Tendance Linéaire", x = "Temps", y = "Valeur") +
+  theme_minimal()
+
   b. Représenter graphiquement la série simulée et sa tendance.
+  
+  lm_trend <- lm(y_trend ~ t)
+summary(lm_trend)
+
   c. Ajuster un modèle de régression linéaire pour extraire la tendance et analyser les résidus.
+  
+  residus <- lm_trend$residuals
+
+ggplot(data.frame(time = t, res = residus), aes(x = time, y = res)) +
+  geom_line(color = "red") +
+  labs(title = "Résidus après ajustement de la tendance", x = "Temps", y = "Résidu") +
+  theme_minimal()
+
   d. Discuter de l'effet de la tendance sur la stationnarité de la série.
+  Les résidus devraient être stationnaires après suppression de la tendance.
 
 ## 4. Processus VAR
 
@@ -87,8 +296,90 @@ library()
   y_{2,t} &= 0.3y_{1,t-1} + 0.4y_{2,t-1} + \varepsilon_{2,t}
   \end{aligned}$$
   où $\varepsilon_{1,t}$ et $\varepsilon_{2,t}$ sont des bruits blancs de loi $\mathsf{N}(0,1)$.
+  
+  # Charger le package
+library(vars)
+
+# Définition des paramètres
+set.seed(123)
+n <- 200  # Nombre d'observations
+A <- matrix(c(0.5, 0.2, 0.3, 0.4), nrow = 2)  # Matrice des coefficients
+eps <- matrix(rnorm(2 * n), ncol = 2)  # Bruits blancs gaussiens
+
+# Initialisation des séries
+y_var <- matrix(0, nrow = n, ncol = 2)
+
+# Simulation du processus VAR(1)
+for (t in 2:n) {
+  y_var[t, ] <- A %*% y_var[t - 1, ] + eps[t, ]
+}
+
+# Conversion en data.frame
+df_var <- data.frame(time = 1:n, y1 = y_var[, 1], y2 = y_var[, 2])
+
+# Tracé des séries
+ggplot(df_var, aes(x = time)) +
+  geom_line(aes(y = y1, color = "Série y1")) +
+  geom_line(aes(y = y2, color = "Série y2")) +
+  labs(title = "Simulation du Processus VAR(1)", x = "Temps", y = "Valeur") +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_minimal()
+
   b. Représenter graphiquement les séries simulées.
+  
+  # Création de la série temporelle
+df_ts <- ts(y_var)
+
+# Estimation du modèle VAR(1)
+var_model <- VAR(df_ts, p = 1, type = "const")
+summary(var_model)
+
   c. Estimer le modèle VAR(1) sur les données simulées. 
+  
+  # Tracé des résidus
+res_var <- residuals(var_model)
+
+df_res <- data.frame(time = 1:n, res1 = res_var[,1], res2 = res_var[,2])
+
+ggplot(df_res, aes(x = time)) +
+  geom_line(aes(y = res1, color = "Résidus Série 1")) +
+  geom_line(aes(y = res2, color = "Résidus Série 2")) +
+  labs(title = "Résidus du modèle VAR(1)", x = "Temps", y = "Valeur") +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_minimal()
+
   d. Présenter les coefficients estimés et interpréter les relations dynamiques entre les deux séries.
+  
+  Box.test(res_var[,1], lag = 10, type = "Ljung-Box")
+Box.test(res_var[,2], lag = 10, type = "Ljung-Box")
+
+On utilise un modèle VAR car il capture les interactions entre plusieurs séries temporelleset il permet de modéliser les relations dynamiques entre des variables économiques (ex : PIB et inflation).ensuite il est utilisé pour prévoir l’évolution conjointe de plusieurs variables.
+
   e. Tracer l'ACF et la PACF des résidus pour chaque série, et tester leur stationnarité.
+  
+  # ACF et PACF des résidus de la première série
+par(mfrow = c(2,2))  # Affichage en 2x2
+acf(res_var[,1], main = "ACF des résidus - Série 1")
+pacf(res_var[,1], main = "PACF des résidus - Série 1")
+
+# ACF et PACF des résidus de la deuxième série
+acf(res_var[,2], main = "ACF des résidus - Série 2")
+pacf(res_var[,2], main = "PACF des résidus - Série 2")
+par(mfrow = c(1,1))  # Retour à l'affichage normal
+
+Tester la stationnarité
+
+# Test ADF sur les résidus de la première série
+adf_test_1 <- adf.test(res_var[,1])
+
+# Test ADF sur les résidus de la deuxième série
+adf_test_2 <- adf.test(res_var[,2])
+
+# Affichage des résultats
+print(adf_test_1)
+print(adf_test_2)
+
+
   f. Discuter de l'utilité des modèles VAR pour analyser les relations entre plusieurs séries temporelles dans un contexte économique.
+  
+  Les modèles VAR sont largement utilisés en économie pour analyser les relations dynamiques entre plusieurs variables temporelles. Ils permettent d’étudier les interactions entre des indicateurs comme le PIB et l’inflation, de réaliser des prévisions économiques et d’évaluer l’impact des chocs économiques, tels qu’une crise financière ou une politique monétaire. De plus, ils sont utiles pour comprendre la transmission des fluctuations entre différents marchés. Grâce à leur flexibilité, les modèles VAR sont un outil clé en macroéconomie et en finance pour l’analyse et la prévision des cycles économiques.
